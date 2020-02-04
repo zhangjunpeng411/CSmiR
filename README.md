@@ -1,5 +1,5 @@
 # CSmiR
-Exploring cell-specific miRNA regulation from single-cell miRNA-mRNA co-sequencing data
+Exploring cell-specific miRNA regulation with single-cell miRNA-mRNA co-sequencing data
 
 ## Background
 Single-cell miRNA-mRNA co-sequencing opens up an insight to investigate miRNA regulation at single-cell level. However, existing methods are only applicable to study miRNA regulation from a group of cells rather than a single cell. Consequently, the unique miRNA regulation in each single cell will be annihilated. To understand the heterogeneity of miRNA regulation in each single cell, there is a strong need of novel methods to explore cell-specific miRNA regulation at a single-cell resolution level. In this work, we propose a novel method to explore Cell-Specific miRNA regulation (CSmiR) for each single cell from single-cell miRNA-mRNA co-sequencing data. To the best of our knowledge, CSmiR is the first method to explore miRNA regulation at a single-cell resolution level, and we believe that it can be applied to uncover miRNA regulation in other single cells.
