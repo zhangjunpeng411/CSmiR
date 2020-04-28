@@ -9,11 +9,78 @@ Exp_K562_19_single_cells.RData: Matched miRNA and mRNA expression data across 19
 
 Conserved and rewired results.md: The results of conserved and rewired miRNA-mRNA regulatory networks and hub miRNAs across 19 half K562 cells.
 
-CSmiR.R: Scripts for exploring cell-specific miRNA regulation.
+CSmiR.R: Utility functions for exploring cell-specific miRNA regulation.
+
+Case_study.R: Running scripts for exploring cell-specific miRNA regulation
 
 ## The usage of CSmiR
 Paste all files into a single folder (set the folder as the directory of R environment), the workflow of CSmiR is implemented in CSmiR.R. The users can simply run the scripts as follows.
 
 ```{r echo=FALSE, results='hide', message=FALSE}
-source("CSmiR.R")
+source("Case_study.R")
 ```
+## Quick example to use CSmiR
+For identifying cell-specific miRNA regulation, users should prepare matched miRNA and mRNA single-cell co-expression data. Paste the datasets and our source file (CSmiR.R) into a single folder (set the folder as the directory of R environment), users can use the following scripts to identify cell-specific miRNA regulation. For convenience, the datasets prepared for users are from our datasets (Exp_K562_19_single_cells.RData).
+
+```{r echo=FALSE, results='hide', message=FALSE}
+## Load required R packages, please firstly install the following R packages before running scripts
+library(pracma)
+library(igraph)
+library(miRspongeR)
+library(biclique)
+library(corrplot)
+library(dendextend)
+library(ggplot2)
+library(ggsignif)
+library(clusterProfiler)
+library(msigdbr)
+library(pheatmap)
+
+## Load utility functions
+source("CSmiR.R")
+
+## Load prepared datasets
+load("Exp_K562_19_single_cells.RData")
+
+## Preprocess the single-cell sequencing data including log2(x+1), compute the average expression values of duplicate genes
+## and remove genes with constant expression values in all cells
+
+    # Transformation using log2(x+1)
+    miRNA_scRNA_norm <- log2(miRNA_scRNA_raw+1)
+    mRNA_scRNA_norm <- log2(mRNA_scRNA_raw+1)
+
+    # Compute the average expression values of duplicate genes
+    miRNA_scRNA_norm_average <- Averg_Duplicate(miRNA_scRNA_norm)
+    mRNA_scRNA_norm_average <- Averg_Duplicate(mRNA_scRNA_norm)
+
+    # Remove genes with constant expression values in all cells
+    miRNA_scRNA_norm_sd <- unlist(lapply(seq(dim(miRNA_scRNA_norm_average)[2]), function(i) sd(miRNA_scRNA_norm_average[, i])))
+    miRNA_scRNA_norm_filter <- miRNA_scRNA_norm_average[, which(miRNA_scRNA_norm_sd > 0)]
+    mRNA_scRNA_norm_sd <- unlist(lapply(seq(dim(mRNA_scRNA_norm_average)[2]), function(i) sd(mRNA_scRNA_norm_average[, i])))
+    mRNA_scRNA_norm_filter <- mRNA_scRNA_norm_average[, which(mRNA_scRNA_norm_sd > 0)]
+
+## Discovering cell-specific miRNA-mRNA regulatory network   
+    CSmiR_network_constant <- CSmiR_net(miRNA_scRNA_norm_filter, mRNA_scRNA_norm_filter, 
+                                        boxsize = 0.1, interp_betw_point = 5, 
+			                                  interp_type = "constant", p.value.cutoff = 0.01)
+
+    CSmiR_network_linear <- CSmiR_net(miRNA_scRNA_norm_filter, mRNA_scRNA_norm_filter, 
+                                      boxsize = 0.1, interp_betw_point = 5, 
+			                                interp_type = "linear", p.value.cutoff = 0.01)
+
+    CSmiR_network_nearest <- CSmiR_net(miRNA_scRNA_norm_filter, mRNA_scRNA_norm_filter, 
+                                       boxsize = 0.1, interp_betw_point = 5, 
+			                                 interp_type = "nearest", p.value.cutoff = 0.01)
+
+    CSmiR_network_spline <- CSmiR_net(miRNA_scRNA_norm_filter, mRNA_scRNA_norm_filter, 
+                                      boxsize = 0.1, interp_betw_point = 5, 
+			                                interp_type = "spline", p.value.cutoff = 0.01)
+
+    CSmiR_network_cubic <- CSmiR_net(miRNA_scRNA_norm_filter, mRNA_scRNA_norm_filter, 
+                                     boxsize = 0.1, interp_betw_point = 5, 
+			                               interp_type = "cubic", p.value.cutoff = 0.01)  
+```
+
+
+
+
