@@ -62,23 +62,23 @@ load("Exp_K562_19_single_cells.RData")
 ## Discovering cell-specific miRNA-mRNA regulatory network   
     CSmiR_network_constant <- CSmiR_net(miRNA_scRNA_norm_filter, mRNA_scRNA_norm_filter, 
                                         boxsize = 0.1, interp_betw_point = 5, 
-			                                  interp_type = "constant", p.value.cutoff = 0.01)
+			                interp_type = "constant", p.value.cutoff = 0.01)
 
     CSmiR_network_linear <- CSmiR_net(miRNA_scRNA_norm_filter, mRNA_scRNA_norm_filter, 
-                                      boxsize = 0.1, interp_betw_point = 5, 
-			                                interp_type = "linear", p.value.cutoff = 0.01)
+                                        boxsize = 0.1, interp_betw_point = 5, 
+			                interp_type = "linear", p.value.cutoff = 0.01)
 
     CSmiR_network_nearest <- CSmiR_net(miRNA_scRNA_norm_filter, mRNA_scRNA_norm_filter, 
-                                       boxsize = 0.1, interp_betw_point = 5, 
-			                                 interp_type = "nearest", p.value.cutoff = 0.01)
+                                        boxsize = 0.1, interp_betw_point = 5, 
+			                interp_type = "nearest", p.value.cutoff = 0.01)
 
     CSmiR_network_spline <- CSmiR_net(miRNA_scRNA_norm_filter, mRNA_scRNA_norm_filter, 
-                                      boxsize = 0.1, interp_betw_point = 5, 
-			                                interp_type = "spline", p.value.cutoff = 0.01)
+                           boxsize = 0.1, interp_betw_point = 5, 
+			   interp_type = "spline", p.value.cutoff = 0.01)
 
     CSmiR_network_cubic <- CSmiR_net(miRNA_scRNA_norm_filter, mRNA_scRNA_norm_filter, 
-                                     boxsize = 0.1, interp_betw_point = 5, 
-			                               interp_type = "cubic", p.value.cutoff = 0.01)  
+                                        boxsize = 0.1, interp_betw_point = 5, 
+			                interp_type = "cubic", p.value.cutoff = 0.01) 
 ```
 
 
