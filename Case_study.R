@@ -4,6 +4,7 @@
 
 ## Load required R packages, please firstly install the following R packages before running scripts
 library(pracma)
+library(WGCNA)
 library(igraph)
 library(miRspongeR)
 library(biclique)
@@ -11,6 +12,7 @@ library(corrplot)
 library(dendextend)
 library(ggplot2)
 library(ggsignif)
+library(cowplot)
 library(clusterProfiler)
 library(msigdbr)
 library(pheatmap)
@@ -348,7 +350,8 @@ load("Exp_K562_19_single_cells.RData")
     CSmiR_hub_cubic_cell_module <- netModule(CSmiR_hub_cubic_adjacency_matrix_graph %>% as_data_frame)
 
 ## The miR-17/92 family analysis
-    miR_17_92_family <- c("hsa-miR-17-5p", "hsa-miR-18a-5p", "hsa-miR-19a-5p", "hsa-miR-19b-1-5p", "hsa-miR-20a-5p", "hsa-miR-92a-1-5p")
+    miR_17_92_family <- c("hsa-miR-17-3p", "hsa-miR-17-5p","hsa-miR-18a-3p", "hsa-miR-18a-5p", "hsa-miR-19a-3p", "hsa-miR-19a-5p",  
+                          "hsa-miR-19b-3p", "hsa-miR-19b-1-5p", "hsa-miR-20a-3p", "hsa-miR-20a-5p", "hsa-miR-92a-3p", "hsa-miR-92a-1-5p")
     
     # Heatmap of miR-17/92 family expression
     miRfamily_exp <- miRNA_scRNA_norm_average[, which(colnames(miRNA_scRNA_norm_average) %in% miR_17_92_family)]
@@ -411,40 +414,52 @@ load("Exp_K562_19_single_cells.RData")
     CSmiR_network_cubic_miRfamily_validated <- lapply(seq(CSmiR_network_cubic_miRfamily), function(i) as_data_frame(CSmiR_network_cubic_miRfamily_graph[[i]] %s% miRTarget_graph))
 
 ## Discovering maximal bicliques of conserved and rewired the miR-17/92 family regulation   
-    CSmiR_network_miRfamily_constant_biclique <- biclique_network(list(Overlap_network_constant_miRfamily, Overlap_network_constant_rewired_miRfamily), lleast = 2, rleast = 3)
+    CSmiR_network_miRfamily_constant_biclique <- biclique_network(list(Sub_miR(Overlap_network_constant_miRfamily), Sub_miR(Overlap_network_constant_rewired_miRfamily)), lleast = 2, rleast = 3)
    
-    # No conserved and rewired bicliques found
-    # CSmiR_network_miRfamily_linear_biclique <- biclique_network(list(Overlap_network_linear_miRfamily), lleast = 2, rleast = 3)
+    CSmiR_network_miRfamily_linear_biclique <- biclique_network(list(Sub_miR(Overlap_network_linear_miRfamily), Sub_miR(Overlap_network_linear_rewired_miRfamily)), lleast = 2, rleast = 3)
     
-    CSmiR_network_miRfamily_nearest_biclique <- biclique_network(list(Overlap_network_nearest_miRfamily, Overlap_network_nearest_rewired_miRfamily), lleast = 2, rleast = 3)
+    CSmiR_network_miRfamily_nearest_biclique <- biclique_network(list(Sub_miR(Overlap_network_nearest_miRfamily), Sub_miR(Overlap_network_nearest_rewired_miRfamily)), lleast = 2, rleast = 3)
     
-    CSmiR_network_miRfamily_spline_biclique <- biclique_network(list(Overlap_network_spline_miRfamily, Overlap_network_spline_rewired_miRfamily), lleast = 2, rleast = 3)
+    CSmiR_network_miRfamily_spline_biclique <- biclique_network(list(Sub_miR(Overlap_network_spline_miRfamily), Sub_miR(Overlap_network_spline_rewired_miRfamily)), lleast = 2, rleast = 3)
     
-    # No conserved and rewired bicliques found
-    # CSmiR_network_miRfamily_cubic_biclique <- biclique_network(list(Overlap_network_cubic_miRfamily), lleast = 2, rleast = 3)
+    #No rewired bicliques found
+    CSmiR_network_miRfamily_cubic_biclique <- biclique_network(list(Sub_miR(Overlap_network_cubic_miRfamily)), lleast = 2, rleast = 3)
 
 ## Enrichment analysis of maximal bicliques of conserved and rewired the miR-17/92 family regulation   
    miRfamily_constant_biclique_conserved_gene_list <- lapply(seq(CSmiR_network_miRfamily_constant_biclique[[1]]), function(i) CSmiR_network_miRfamily_constant_biclique[[1]][[i]]$right)
    miRfamily_constant_biclique_rewired_gene_list <- lapply(seq(CSmiR_network_miRfamily_constant_biclique[[2]]), function(i) CSmiR_network_miRfamily_constant_biclique[[2]][[i]]$right)
+
+   miRfamily_linear_biclique_conserved_gene_list <- lapply(seq(CSmiR_network_miRfamily_linear_biclique[[1]]), function(i) CSmiR_network_miRfamily_linear_biclique[[1]][[i]]$right)
+   miRfamily_linear_biclique_rewired_gene_list <- lapply(seq(CSmiR_network_miRfamily_linear_biclique[[2]]), function(i) CSmiR_network_miRfamily_linear_biclique[[2]][[i]]$right)
 
    miRfamily_nearest_biclique_conserved_gene_list <- lapply(seq(CSmiR_network_miRfamily_nearest_biclique[[1]]), function(i) CSmiR_network_miRfamily_nearest_biclique[[1]][[i]]$right)
    miRfamily_nearest_biclique_rewired_gene_list <- lapply(seq(CSmiR_network_miRfamily_nearest_biclique[[2]]), function(i) CSmiR_network_miRfamily_nearest_biclique[[2]][[i]]$right)
 
    miRfamily_spline_biclique_conserved_gene_list <- lapply(seq(CSmiR_network_miRfamily_spline_biclique[[1]]), function(i) CSmiR_network_miRfamily_spline_biclique[[1]][[i]]$right)
    miRfamily_spline_biclique_rewired_gene_list <- lapply(seq(CSmiR_network_miRfamily_spline_biclique[[2]]), function(i) CSmiR_network_miRfamily_spline_biclique[[2]][[i]]$right)
+
+   miRfamily_cubic_biclique_conserved_gene_list <- lapply(seq(CSmiR_network_miRfamily_cubic_biclique[[1]]), function(i) CSmiR_network_miRfamily_cubic_biclique[[1]][[i]]$right)
    
    # GO, KEGG and Reactome enrichment analysis
    miRfamily_constant_biclique_conserved_FEA <- moduleFEA(miRfamily_constant_biclique_conserved_gene_list, padjustvaluecutoff = 0.05)
    miRfamily_constant_biclique_rewired_FEA <- moduleFEA(miRfamily_constant_biclique_rewired_gene_list, padjustvaluecutoff = 0.05)
 
+   miRfamily_linear_biclique_conserved_FEA <- moduleFEA(miRfamily_linear_biclique_conserved_gene_list, padjustvaluecutoff = 0.05)
+   miRfamily_linear_biclique_rewired_FEA <- moduleFEA(miRfamily_linear_biclique_rewired_gene_list, padjustvaluecutoff = 0.05)
+
    miRfamily_nearest_biclique_conserved_FEA <- moduleFEA(miRfamily_nearest_biclique_conserved_gene_list, padjustvaluecutoff = 0.05)
    miRfamily_nearest_biclique_rewired_FEA <- moduleFEA(miRfamily_nearest_biclique_rewired_gene_list, padjustvaluecutoff = 0.05)
 
    miRfamily_spline_biclique_conserved_FEA <- moduleFEA(miRfamily_spline_biclique_conserved_gene_list, padjustvaluecutoff = 0.05)
-   miRfamily_spline_biclique_rewired_FEA <- moduleFEA(miRfamily_spline_biclique_rewired_gene_list, padjustvaluecutoff = 0.05)   
+   miRfamily_spline_biclique_rewired_FEA <- moduleFEA(miRfamily_spline_biclique_rewired_gene_list, padjustvaluecutoff = 0.05) 
    
+   miRfamily_cubic_biclique_conserved_FEA <- moduleFEA(miRfamily_cubic_biclique_conserved_gene_list, padjustvaluecutoff = 0.05)
+      
    miRfamily_constant_biclique_conserved_miRmR_list <- lapply(seq(CSmiR_network_miRfamily_constant_biclique[[1]]), function(i) c(CSmiR_network_miRfamily_constant_biclique[[1]][[i]]$left, CSmiR_network_miRfamily_constant_biclique[[1]][[i]]$right))
    miRfamily_constant_biclique_rewired_miRmR_list <- lapply(seq(CSmiR_network_miRfamily_constant_biclique[[2]]), function(i) c(CSmiR_network_miRfamily_constant_biclique[[2]][[i]]$left, CSmiR_network_miRfamily_constant_biclique[[2]][[i]]$right))
+
+   miRfamily_linear_biclique_conserved_miRmR_list <- lapply(seq(CSmiR_network_miRfamily_linear_biclique[[1]]), function(i) c(CSmiR_network_miRfamily_linear_biclique[[1]][[i]]$left, CSmiR_network_miRfamily_linear_biclique[[1]][[i]]$right))
+   miRfamily_linear_biclique_rewired_miRmR_list <- lapply(seq(CSmiR_network_miRfamily_linear_biclique[[2]]), function(i) c(CSmiR_network_miRfamily_linear_biclique[[2]][[i]]$left, CSmiR_network_miRfamily_linear_biclique[[2]][[i]]$right))
 
    miRfamily_nearest_biclique_conserved_miRmR_list <- lapply(seq(CSmiR_network_miRfamily_nearest_biclique[[1]]), function(i) c(CSmiR_network_miRfamily_nearest_biclique[[1]][[i]]$left, CSmiR_network_miRfamily_nearest_biclique[[1]][[i]]$right))
    miRfamily_nearest_biclique_rewired_miRmR_list <- lapply(seq(CSmiR_network_miRfamily_nearest_biclique[[2]]), function(i) c(CSmiR_network_miRfamily_nearest_biclique[[2]][[i]]$left, CSmiR_network_miRfamily_nearest_biclique[[2]][[i]]$right))
@@ -452,9 +467,14 @@ load("Exp_K562_19_single_cells.RData")
    miRfamily_spline_biclique_conserved_miRmR_list <- lapply(seq(CSmiR_network_miRfamily_spline_biclique[[1]]), function(i) c(CSmiR_network_miRfamily_spline_biclique[[1]][[i]]$left, CSmiR_network_miRfamily_spline_biclique[[1]][[i]]$right))
    miRfamily_spline_biclique_rewired_miRmR_list <- lapply(seq(CSmiR_network_miRfamily_spline_biclique[[2]]), function(i) c(CSmiR_network_miRfamily_spline_biclique[[2]][[i]]$left, CSmiR_network_miRfamily_spline_biclique[[2]][[i]]$right))
 
+   miRfamily_cubic_biclique_conserved_miRmR_list <- lapply(seq(CSmiR_network_miRfamily_cubic_biclique[[1]]), function(i) c(CSmiR_network_miRfamily_cubic_biclique[[1]][[i]]$left, CSmiR_network_miRfamily_cubic_biclique[[1]][[i]]$right))
+  
    # CML enrichment analysis   
    miRfamily_constant_biclique_conserved_CML_EA <- module_CML_EA(miRNA_scRNA_norm_filter, mRNA_scRNA_norm_filter, CML, miRfamily_constant_biclique_conserved_miRmR_list)
    miRfamily_constant_biclique_rewired_CML_EA <- module_CML_EA(miRNA_scRNA_norm_filter, mRNA_scRNA_norm_filter, CML, miRfamily_constant_biclique_rewired_miRmR_list)
+
+   miRfamily_linear_biclique_conserved_CML_EA <- module_CML_EA(miRNA_scRNA_norm_filter, mRNA_scRNA_norm_filter, CML, miRfamily_linear_biclique_conserved_miRmR_list)
+   miRfamily_linear_biclique_rewired_CML_EA <- module_CML_EA(miRNA_scRNA_norm_filter, mRNA_scRNA_norm_filter, CML, miRfamily_linear_biclique_rewired_miRmR_list)
 
    miRfamily_nearest_biclique_conserved_CML_EA <- module_CML_EA(miRNA_scRNA_norm_filter, mRNA_scRNA_norm_filter, CML, miRfamily_nearest_biclique_conserved_miRmR_list)
    miRfamily_nearest_biclique_rewired_CML_EA <- module_CML_EA(miRNA_scRNA_norm_filter, mRNA_scRNA_norm_filter, CML, miRfamily_nearest_biclique_rewired_miRmR_list)
@@ -462,18 +482,25 @@ load("Exp_K562_19_single_cells.RData")
    miRfamily_spline_biclique_conserved_CML_EA <- module_CML_EA(miRNA_scRNA_norm_filter, mRNA_scRNA_norm_filter, CML, miRfamily_spline_biclique_conserved_miRmR_list)
    miRfamily_spline_biclique_rewired_CML_EA <- module_CML_EA(miRNA_scRNA_norm_filter, mRNA_scRNA_norm_filter, CML, miRfamily_spline_biclique_rewired_miRmR_list)
 
+   miRfamily_cubic_biclique_conserved_CML_EA <- module_CML_EA(miRNA_scRNA_norm_filter, mRNA_scRNA_norm_filter, CML, miRfamily_cubic_biclique_conserved_miRmR_list)
+   
    # Hallmark enrichment analysis
    m_t2g <- msigdbr(species = "Homo sapiens", category = "H") %>% dplyr::select(gs_name, human_gene_symbol)
    
    miRfamily_constant_biclique_conserved_Hallmark <- lapply(seq(miRfamily_constant_biclique_conserved_gene_list), function(i) enricher(miRfamily_constant_biclique_conserved_gene_list[[i]], TERM2GENE=m_t2g, minGSSize=1) %>% as.data.frame)
    miRfamily_constant_biclique_rewired_Hallmark <- lapply(seq(miRfamily_constant_biclique_rewired_gene_list), function(i) enricher(miRfamily_constant_biclique_rewired_gene_list[[i]], TERM2GENE=m_t2g, minGSSize=1) %>% as.data.frame)
+
+   miRfamily_linear_biclique_conserved_Hallmark <- lapply(seq(miRfamily_linear_biclique_conserved_gene_list), function(i) enricher(miRfamily_linear_biclique_conserved_gene_list[[i]], TERM2GENE=m_t2g, minGSSize=1) %>% as.data.frame)
+   miRfamily_linear_biclique_rewired_Hallmark <- lapply(seq(miRfamily_linear_biclique_rewired_gene_list), function(i) enricher(miRfamily_linear_biclique_rewired_gene_list[[i]], TERM2GENE=m_t2g, minGSSize=1) %>% as.data.frame)
    
    miRfamily_nearest_biclique_conserved_Hallmark <- lapply(seq(miRfamily_nearest_biclique_conserved_gene_list), function(i) enricher(miRfamily_nearest_biclique_conserved_gene_list[[i]], TERM2GENE=m_t2g, minGSSize=1) %>% as.data.frame)
    miRfamily_nearest_biclique_rewired_Hallmark <- llapply(seq(miRfamily_nearest_biclique_rewired_gene_list), function(i) enricher(miRfamily_nearest_biclique_rewired_gene_list[[i]], TERM2GENE=m_t2g, minGSSize=1) %>% as.data.frame)
    
    miRfamily_spline_biclique_conserved_Hallmark <- lapply(seq(miRfamily_spline_biclique_conserved_gene_list), function(i) enricher(miRfamil_spliney_biclique_conserved_gene_list[[i]], TERM2GENE=m_t2g, minGSSize=1) %>% as.data.frame)
    miRfamily_spline_biclique_rewired_Hallmark <- lapply(seq(miRfamily_spline_biclique_rewired_gene_list), function(i) enricher(miRfamily_spline_biclique_rewired_gene_list[[i]], TERM2GENE=m_t2g, minGSSize=1) %>% as.data.frame)
-   
+  
+   miRfamily_cubic_biclique_conserved_Hallmark <- lapply(seq(miRfamily_cubic_biclique_conserved_gene_list), function(i) enricher(miRfamily_cubic_biclique_conserved_gene_list[[i]], TERM2GENE=m_t2g, minGSSize=1) %>% as.data.frame)
+  
    # Cell marker enrichment analsyis
    cell_markers <- vroom::vroom('http://bio-bigdata.hrbmu.edu.cn/CellMarker/download/Human_cell_markers.txt') %>%
    tidyr::unite("cellMarker", tissueType, cancerType, cellName, sep=", ") %>% 
@@ -481,13 +508,18 @@ load("Exp_K562_19_single_cells.RData")
    
    miRfamily_constant_biclique_conserved_Cellmarker <- lapply(seq(miRfamily_constant_biclique_conserved_gene_list), function(i) enricher(miRfamily_constant_biclique_conserved_gene_list[[i]], TERM2GENE=cell_markers, minGSSize=1) %>% as.data.frame)
    miRfamily_constant_biclique_rewired_Cellmarker <- lapply(seq(miRfamily_constant_biclique_rewired_gene_list), function(i) enricher(miRfamily_constant_biclique_rewired_gene_list[[i]], TERM2GENE=cell_markers, minGSSize=1) %>% as.data.frame)
+
+   miRfamily_linear_biclique_conserved_Cellmarker <- lapply(seq(miRfamily_linear_biclique_conserved_gene_list), function(i) enricher(miRfamily_linear_biclique_conserved_gene_list[[i]], TERM2GENE=cell_markers, minGSSize=1) %>% as.data.frame)
+   miRfamily_linear_biclique_rewired_Cellmarker <- lapply(seq(miRfamily_linear_biclique_rewired_gene_list), function(i) enricher(miRfamily_linear_biclique_rewired_gene_list[[i]], TERM2GENE=cell_markers, minGSSize=1) %>% as.data.frame)
    
    miRfamily_nearest_biclique_conserved_Cellmarker <- lapply(seq(miRfamily_nearest_biclique_conserved_gene_list), function(i) enricher(miRfamily_nearest_biclique_conserved_gene_list[[i]], TERM2GENE=cell_markers, minGSSize=1) %>% as.data.frame)
    miRfamily_nearest_biclique_rewired_Cellmarker <- lapply(seq(miRfamily_nearest_biclique_rewired_gene_list), function(i) enricher(miRfamily_nearest_biclique_rewired_gene_list[[i]], TERM2GENE=cell_markers, minGSSize=1) %>% as.data.frame)
 
    miRfamily_spline_biclique_conserved_Cellmarker <- lapply(seq(miRfamily_spline_biclique_conserved_gene_list), function(i) enricher(miRfamily_spline_biclique_conserved_gene_list[[i]], TERM2GENE=cell_markers, minGSSize=1) %>% as.data.frame)
    miRfamily_spline_biclique_rewired_Cellmarker <- lapply(seq(miRfamily_spline_biclique_rewired_gene_list), function(i) enricher(miRfamily_spline_biclique_rewired_gene_list[[i]], TERM2GENE=cell_markers, minGSSize=1) %>% as.data.frame)
-   
+
+   miRfamily_cubic_biclique_conserved_Cellmarker <- lapply(seq(miRfamily_cubic_biclique_conserved_gene_list), function(i) enricher(miRfamily_cubic_biclique_conserved_gene_list[[i]], TERM2GENE=cell_markers, minGSSize=1) %>% as.data.frame)
+  
 ## Hierarchical cluster analysis of cell-specific miRNA-mRNA regulatory network    
     rownames(CsmiR_network_constant_Sim) <- colnames(CsmiR_network_constant_Sim) <- rownames(miRNA_scRNA_norm_filter)
     rownames(CsmiR_network_linear_Sim) <- colnames(CsmiR_network_linear_Sim) <- rownames(miRNA_scRNA_norm_filter)

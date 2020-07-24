@@ -261,3 +261,27 @@ module_CML_EA <- function(miRExp, mRExp, CMLgenes, Modulelist) {
     names(p.value) <- names(Modulelist)
     return(p.value)
 }
+
+## Function for replacing miR-17/92 family names
+# Int: miRNA-target interactions
+# Output: unique miRNA-target interactions after replacing miRNA names
+Sub_miR <- function(Int){
+    tmp <- Int[, 1]
+    tmp1 <- gsub("hsa-miR-17-5p", "miR-17", tmp)
+    tmp2 <- gsub("hsa-miR-17-3p", "miR-17", tmp1)
+    tmp3 <- gsub("hsa-miR-18a-5p", "miR-18a", tmp2)
+    tmp4 <- gsub("hsa-miR-18a-3p", "miR-18a", tmp3)
+    tmp5 <- gsub("hsa-miR-19a-5p", "miR-19a", tmp4)
+    tmp6 <- gsub("hsa-miR-19a-3p", "miR-19a", tmp5)
+    tmp7 <- gsub("hsa-miR-19b-1-5p", "miR-19b-1", tmp6)
+    tmp8 <- gsub("hsa-miR-19b-3p", "miR-19b-1", tmp7)
+    tmp9 <- gsub("hsa-miR-20a-5p", "miR-20a", tmp8)
+    tmp10 <- gsub("hsa-miR-20a-3p", "miR-20a", tmp9)
+    tmp11 <- gsub("hsa-miR-92a-1-5p", "miR-92a-1", tmp10)
+    tmp12 <- gsub("hsa-miR-92a-3p", "miR-92a-1", tmp11)
+
+    res <- unique(cbind(tmp12, Int[, 2]))
+
+    colnames(res) <- c("miR", "target")
+    return(res)
+}
