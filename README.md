@@ -7,7 +7,7 @@ Single-cell miRNA-mRNA co-sequencing opens up an insight to investigate miRNA re
 ## Description of each file
 Exp_K562_19_single_cells.RData: Matched miRNA and mRNA expression data across 19 half K562 cells, Putative miRNA-target binding information from miRTarBase v8.0 and TarBase v8.0, the list of CML-related miRNAs and mRNAs from HMDD v3.0 and DisGeNET v5.0.
 
-Conserved and rewired results.md: The results of conserved and rewired miRNA-mRNA regulatory networks and hub miRNAs across 19 half K562 cells.
+Conserved and rewired results.xlsx: The results of conserved and rewired miRNA-mRNA regulatory networks and hub miRNAs across 19 half K562 cells.
 
 CSmiR.R: Utility functions for exploring cell-specific miRNA regulation.
 
