@@ -25,6 +25,7 @@ For identifying cell-specific miRNA regulation, users should prepare matched miR
 ```{r echo=FALSE, results='hide', message=FALSE}
 ## Load required R packages, please firstly install the following R packages before running scripts
 library(pracma)
+library(WGCNA)
 library(igraph)
 library(miRspongeR)
 library(biclique)
@@ -32,9 +33,9 @@ library(corrplot)
 library(dendextend)
 library(ggplot2)
 library(ggsignif)
+library(cowplot)
 library(clusterProfiler)
 library(msigdbr)
-library(pheatmap)
 
 ## Load utility functions
 source("CSmiR.R")
@@ -59,26 +60,11 @@ load("Exp_K562_19_single_cells.RData")
     mRNA_scRNA_norm_sd <- unlist(lapply(seq(dim(mRNA_scRNA_norm_average)[2]), function(i) sd(mRNA_scRNA_norm_average[, i])))
     mRNA_scRNA_norm_filter <- mRNA_scRNA_norm_average[, which(mRNA_scRNA_norm_sd > 0)]
 
-## Discovering cell-specific miRNA-mRNA regulatory network   
-    CSmiR_network_constant <- CSmiR_net(miRNA_scRNA_norm_filter, mRNA_scRNA_norm_filter, 
-                                        boxsize = 0.1, interp_betw_point = 5, 
-			                interp_type = "constant", p.value.cutoff = 0.01)
-
-    CSmiR_network_linear <- CSmiR_net(miRNA_scRNA_norm_filter, mRNA_scRNA_norm_filter, 
-                                        boxsize = 0.1, interp_betw_point = 5, 
-			                interp_type = "linear", p.value.cutoff = 0.01)
-
-    CSmiR_network_nearest <- CSmiR_net(miRNA_scRNA_norm_filter, mRNA_scRNA_norm_filter, 
-                                        boxsize = 0.1, interp_betw_point = 5, 
-			                interp_type = "nearest", p.value.cutoff = 0.01)
-
-    CSmiR_network_spline <- CSmiR_net(miRNA_scRNA_norm_filter, mRNA_scRNA_norm_filter, 
-                           boxsize = 0.1, interp_betw_point = 5, 
-			   interp_type = "spline", p.value.cutoff = 0.01)
-
-    CSmiR_network_cubic <- CSmiR_net(miRNA_scRNA_norm_filter, mRNA_scRNA_norm_filter, 
-                                        boxsize = 0.1, interp_betw_point = 5, 
-			                interp_type = "cubic", p.value.cutoff = 0.01) 
+## Discovering cell-specific miRNA-mRNA regulatory network. The running time depends on the number of bootstrapping (100 in default).
+## Users can set a small number of bootstrapping (i.e. bootstrap_num = 3) to run the following script.
+    CSmiR_network_bootstrap <- CSmiR_net_bootstrap(miRNA_scRNA_norm_filter, mRNA_scRNA_norm_filter, 
+                                                   boxsize = 0.1, bootstrap_betw_point = 5, 
+						   bootstrap_num = 100, p.value.cutoff = 0.01)
 ```
 
 
