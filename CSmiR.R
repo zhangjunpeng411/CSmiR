@@ -2,45 +2,31 @@
 ############## Utility functions for exploring cell-specific miRNA regulation ##############
 ############################################################################################
 
-## Function for calculating the normalized statistic of edge gx-gy in small number of cells (less than 100)
 ## The original version of the function is written in Matlab at https://github.com/wys8c764/CSN 
 ## (Dai H, Li L, Zeng T, Chen L. Cell-specific network constructed by single-cell RNA sequencing data. Nucleic Acids Res. 2019, doi: 10.1093/nar/gkz172.), 
-## and is only applicable in large number of cells (more than 100). 
-## By using interpolation method between cells, we reimplement the function in R for small number of cells of single cell RNA sequencing data.  
+## We reimplement the function in R for single cell RNA sequencing data.  
 # gx and gy: Gene expression values of gene x (a vector) and gene y (a vector) in n cells 
 # boxsize: Size of neighborhood (0.1 in default)
-# interp_betw_point: The number of interpolation points between each cell (5 in default), interp_betw_point = 0 is used to compute
-# the normalized statistic of edge gx-gy in large number of cells (more than 100)
-# interp_type: One of "constant" (constant between points), "linear" (linear interpolation), 
-# "nearest" (nearest neighbor interpolation), "spline" (cubic spline interpolation), or 
-# "cubic" (cubic Hermite interpolation). ("spline" in default)
-# Output: res_real is a vector, the normalized statistic of edge gx-gy in small number of cells
-csn_edge_interp <- function(gx, gy, boxsize = 0.1, interp_betw_point = 5, interp_type = "spline"){
-
-# Interpolate expression values of gene x and gene y 
-    n <- length(gx)
-    c <- seq_len(n)
-    ci <- seq(1, n, by = 1/(interp_betw_point+1))
-    gxi <- interp1(c, gx, ci, method = interp_type)
-    gyi <- interp1(c, gy, ci, method = interp_type)
+# Output: res is a vector, the normalized statistic of edge gx-gy in n cells
+csn_edge <- function(gx, gy, boxsize = 0.1){
 
 # Define the neighborhood of each plot
-    ni <- length(gxi)
-    upper <- zeros(1, ni)
-    lower <- zeros(1, ni)
-    a <- zeros(2, ni)
+    n <- length(gx)
+    upper <- zeros(1, n)
+    lower <- zeros(1, n)
+    a <- zeros(2, n)
     B <- list()
 
     for (i in seq_len(2)){
-        g <- gxi*(i==1)+gyi*(i==2)
+        g <- gx*(i==1)+gy*(i==2)
         s1 <- sort(g, index.return = TRUE)[[1]]
         s2 <- sort(g, index.return = TRUE)[[2]]
-	n0 <- ni - sum(sign(s1))
+	n0 <- n - sum(sign(s1))
         h <- round(boxsize/2*sum(sign(s1))+eps(1))
 	k <- 1
-	while (k <= ni){
+	while (k <= n){
 	    s <- 0
-	    while ( (ni >= k+s+1) && (s1[k+s+1] == s1[k]) ) {
+	    while ( (n >= k+s+1) && (s1[k+s+1] == s1[k]) ) {
 	    s <- s+1
 	    }
 	    if (s >= h){
@@ -53,17 +39,15 @@ csn_edge_interp <- function(gx, gy, boxsize = 0.1, interp_betw_point = 5, interp
 	    k <- k+s+1
 	}
 
-	B[[i]] <- (do.call(cbind, lapply(seq_len(ni), function(i) g <= upper[i]))) & 
-	          (do.call(cbind, lapply(seq_len(ni), function(i) g >= lower[i])))
+	B[[i]] <- (do.call(cbind, lapply(seq_len(n), function(i) g <= upper[i]))) & 
+	          (do.call(cbind, lapply(seq_len(n), function(i) g >= lower[i])))
 	a[i,] <- colSums(B[[i]])
 }
 
 # Calculate the normalized statistic of edge gx-gy
-    res <- (colSums(B[[1]] & B[[2]])*ni-a[1,]*a[2,])/sqrt(a[1,]*a[2,]*(ni-a[1,])*(ni-a[2,])/(ni-1)+eps(1))
+    res <- (colSums(B[[1]] & B[[2]])*n-a[1,]*a[2,])/sqrt(a[1,]*a[2,]*(n-a[1,])*(n-a[2,])/(n-1)+eps(1))
 
-    res_real <- res[seq(1, ni, by = interp_betw_point+1)]
-
-    return(res_real)
+    return(res)
 
  }
 
@@ -91,24 +75,26 @@ Averg_Duplicate <- function(Exp_scRNA){
 # boxsize: Size of neighborhood (0.1 in default)
 # interp_betw_point: The number of interpolation points between each cell (5 in default), interp_betw_point = 0 is used to compute
 # the normalized statistic of edge gx-gy in large number of cells (more than 100)
-# interp_type: One of "constant" (constant between points), "linear" (linear interpolation), 
-# "nearest" (nearest neighbor interpolation), "spline" (cubic spline interpolation), or 
-# "cubic" (cubic Hermite interpolation). ("spline" in default) 
+# bootstrap_num: The number of bootstrapping for interpolating pseudo-cells 
 # p.value.cutoff: Significance p-value for identifying cell-specific miRNA-mRNA regulatory network
 # Output: res_list is a list of cell-specific miRNA-mRNA regulatory network
-CSmiR_net <- function(miR, mR, boxsize = 0.1, interp_betw_point = 5, interp_type = "spline", p.value.cutoff = 0.01) {
+CSmiR_net_bootstrap <- function(miR, mR, boxsize = 0.1, bootstrap_betw_point = 5, bootstrap_num = 100, p.value.cutoff = 0.01) {
 
     miRs_num <- ncol(miR)
     mRs_num <- ncol(mR)
     cell_num <- nrow(miR)
+    bootstrap_sample <- lapply(seq(bootstrap_num), function(i) sample(seq(cell_num), bootstrap_betw_point * (cell_num - 1), replace = TRUE))
+    miR_bootstrap <- lapply(seq(bootstrap_num), function(i) rbind(miR, miR[bootstrap_sample[[i]], ]))
+    mR_bootstrap <- lapply(seq(bootstrap_num), function(i) rbind(mR, mR[bootstrap_sample[[i]], ]))
     res <- matrix(NA, nrow = miRs_num*mRs_num, ncol = cell_num + 2)
     for (i in seq(miRs_num)){
         for (j in seq(mRs_num)){
 	   res[(i-1)*mRs_num+j, 1] <- colnames(miR)[i]
 	   res[(i-1)*mRs_num+j, 2] <- colnames(mR)[j]
-	   res[(i-1)*mRs_num+j, 3:(cell_num + 2)] <- csn_edge_interp(miR[, i], mR[, j], boxsize = boxsize, 
-	                                                             interp_betw_point = interp_betw_point, 
-								     interp_type = interp_type)
+	   res[(i-1)*mRs_num+j, 3:(cell_num + 2)] <- do.call(pmedian, lapply(seq(bootstrap_num), 
+	                                                     function(k) csn_edge(miR_bootstrap[[k]][, i], 
+	                                                     mR_bootstrap[[k]][, j], 
+	                                                     boxsize = boxsize)[seq(cell_num)]))
         }
     }
     
