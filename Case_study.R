@@ -194,55 +194,74 @@ load("Exp_K562_19_single_cells.RData")
     set("labels_col", value = c("red", "green", "blue"), k=3) %>% 
     set("labels_cex", value = 0.7) %>% plot(main="k=3 using hub miRNA dissimilarity")
     
-## Similarity network plot in terms of cell-specific miRNA-mRNA regulatory netowork
-    col3 <- colorRampPalette(c("black", "blue", "red"))
-
+## Similarity network plot in terms of cell-specific miRNA-mRNA regulatory netowork    
     rownames(CsmiR_network_bootstrap_Sim) <- colnames(CsmiR_network_bootstrap_Sim) <- paste("Cell",c(1:19),sep=" ")
-    corrplot.mixed(CsmiR_network_bootstrap_Sim, lower = "number", upper = "pie", lower.col = col3(100), upper.col = col3(100), cl.lim = c(0, 1), number.cex = 0.8, tl.cex = 0.6)
+    corrplot(CsmiR_network_bootstrap_Sim, method = "pie", type = "upper", diag = FALSE, cl.lim = c(0, 1), tl.cex = 1)
 
 ## Similarity network plot in terms of cell-specific hub miRNAs
     rownames(CsmiR_hub_bootstrap_Sim) <- colnames(CsmiR_hub_bootstrap_Sim) <- paste("Cell",c(1:19),sep=" ")
-    corrplot.mixed(CsmiR_hub_bootstrap_Sim, lower = "number", upper = "pie", lower.col = col3(100), upper.col = col3(100), cl.lim = c(0, 1), number.cex = 0.8, tl.cex = 0.6)
+    corrplot(CsmiR_hub_bootstrap_Sim, method = "pie", type = "upper", diag = FALSE, cl.lim = c(0, 1), tl.cex = 1)
 
-## Area plots
-    index_miRfamily_net <- data.frame(value = unlist(lapply(seq(CSmiR_network_bootstrap_miRfamily), function(i) nrow(CSmiR_network_bootstrap_miRfamily[[i]]))), id = seq(19))
+## Stem plots
+index_miRfamily_net <- data.frame(value = unlist(lapply(seq(CSmiR_network_bootstrap_miRfamily), function(i) nrow(CSmiR_network_bootstrap_miRfamily[[i]]))), id = seq(19))
 
+col1 <- rep("#FF9999", 19)
 p1 <- ggplot(index_miRfamily_net, aes(x = id, y = value)) +
-    geom_area(fill = "#FF9999") +
+    geom_point(aes(color = col1), size = 5) +
+    geom_bar(aes(fill = col1), stat = "identity", width = 0.2) +
+    #theme_bw(base_family = "Times") +
     xlab("Single-cell ID") +
     ylab("#Predicted targets of miR-17/92 family") +
-    theme(legend.position="none",  
-          axis.text.x = element_text(face = "bold"),
-	  axis.text.y = element_text(face = "bold"),
-	  axis.title.x = element_text(face = "bold"),
-	  axis.title.y = element_text(face = "bold")) +
-    scale_x_continuous(breaks = seq(1, 19, 1))
-
-index_miRfamily_validated_net <- data.frame(value = unlist(lapply(seq(CSmiR_network_bootstrap_miRfamily_validated), function(i) nrow(CSmiR_network_bootstrap_miRfamily_validated[[i]])/nrow(CSmiR_network_bootstrap_miRfamily[[i]])*100)), id = seq(19))
-
-p2 <- ggplot(index_miRfamily_validated_net, aes(x = id, y = value)) +
-    geom_area(fill = "green") +
-    xlab("Single-cell ID") +
-    ylab("%Validated targets of miR-17/92 family") +
-    theme(legend.position="none",          
-          axis.text.x = element_text(face = "bold"),
-	  axis.text.y = element_text(face = "bold"),
-	  axis.title.x = element_text(face = "bold"),
-	  axis.title.y = element_text(face = "bold")) + 
-    scale_x_continuous(breaks = seq(1, 19, 1))
-
-index_miRfamily_CML_net <- data.frame(value = unlist(lapply(seq(CSmiR_network_bootstrap_miRfamily_CML), function(i) nrow(CSmiR_network_bootstrap_miRfamily_CML[[i]])/nrow(CSmiR_network_bootstrap_miRfamily[[i]])*100)), id = seq(19))
-
-p3 <- ggplot(index_miRfamily_CML_net, aes(x = id, y = value)) +
-    geom_area(fill = "red") +
-    xlab("Single-cell ID") +
-    ylab("%CML-related targets of miR-17/92 family") +
-    theme(legend.position="none",          
+    theme(panel.grid.minor = element_blank(),
+          panel.grid.major.x = element_blank(),
+          legend.position="none", 
+	  panel.border = element_blank(),
           axis.text.x = element_text(face = "bold"),
 	  axis.text.y = element_text(face = "bold"),
 	  axis.title.x = element_text(face = "bold"),
 	  axis.title.y = element_text(face = "bold")) +
     scale_x_continuous(breaks = seq(1, 19, 1)) 
+
+index_miRfamily_validated_net <- data.frame(value = unlist(lapply(seq(CSmiR_network_bootstrap_miRfamily_validated), function(i) nrow(CSmiR_network_bootstrap_miRfamily_validated[[i]])/nrow(CSmiR_network_bootstrap_miRfamily[[i]])*100)), id = seq(19))
+
+col2 <- rep("plum4", 19)
+p2 <- ggplot(index_miRfamily_validated_net, aes(x = id, y = value)) +
+    geom_point(aes(color = col2), size = 5) +
+    geom_bar(aes(fill = col2), stat = "identity", width = 0.2) +
+    scale_fill_manual(values=c("plum4"), aesthetics = "fill") +
+    scale_colour_manual(values=c("plum4"), aesthetics = "colour") +
+    xlab("Single-cell ID") +
+    ylab("%Validated targets of miR-17/92 family") +
+    theme(panel.grid.minor = element_blank(),
+          panel.grid.major.x = element_blank(),
+          legend.position="none", 
+	  panel.border = element_blank(),
+          axis.text.x = element_text(face = "bold"),
+	  axis.text.y = element_text(face = "bold"),
+	  axis.title.x = element_text(face = "bold"),
+	  axis.title.y = element_text(face = "bold")) + 
+    scale_x_continuous(breaks = seq(1, 19, 1)) 
+
+index_miRfamily_CML_net <- data.frame(value = unlist(lapply(seq(CSmiR_network_bootstrap_miRfamily_CML), function(i) nrow(CSmiR_network_bootstrap_miRfamily_CML[[i]])/nrow(CSmiR_network_bootstrap_miRfamily[[i]])*100)), id = seq(19))
+
+col3 <- rep("blue", 19)
+p3 <- ggplot(index_miRfamily_CML_net, aes(x = id, y = value)) +
+    geom_point(aes(color = col3), size = 5) +
+    geom_bar(aes(fill = col3), stat = "identity", width = 0.2) +
+    scale_fill_manual(values=c("blue"), aesthetics = "fill") +
+    scale_colour_manual(values=c("blue"), aesthetics = "colour") +
+    xlab("Single-cell ID") +
+    ylab("%CML-related targets of miR-17/92 family") +
+    theme(panel.grid.minor = element_blank(),
+          panel.grid.major.x = element_blank(),
+          legend.position="none", 
+	  panel.border = element_blank(),
+          axis.text.x = element_text(face = "bold"),
+	  axis.text.y = element_text(face = "bold"),
+	  axis.title.x = element_text(face = "bold"),
+	  axis.title.y = element_text(face = "bold")) +
+    scale_x_continuous(breaks = seq(1, 19, 1))
+    
 
 index_miRfamily_cr_net <- data.frame(value = c(nrow(Overlap_network_bootstrap_miRfamily), nrow(Overlap_network_bootstrap_rewired_miRfamily)), type = c("conserved", "rewired"))
 
@@ -256,6 +275,9 @@ p4 <- ggplot(index_miRfamily_cr_net, aes(x = type, y = value, fill=c("#FF9999", 
 	  axis.title.x = element_text(face = "bold"),
 	  axis.title.y = element_text(face = "bold")) + 
     geom_text(mapping = aes(label = value), colour = 'black', vjust = -.5, hjust = .5, position = position_dodge(0.9))
+
+library(patchwork)
+(p1+p2)/(p3+p4) + plot_annotation(tag_levels = 'A')
 
 save.image("CSmiR.RData")
 
