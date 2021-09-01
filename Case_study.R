@@ -15,6 +15,7 @@ library(ggsignif)
 library(cowplot)
 library(clusterProfiler)
 library(msigdbr)
+library(vroom)
 
 ## Load utility functions
 source("CSmiR.R")
@@ -40,9 +41,12 @@ load("Exp_K562_19_single_cells.RData")
     mRNA_scRNA_norm_filter <- mRNA_scRNA_norm_average[, which(mRNA_scRNA_norm_sd > 0)]
 
 ## Discovering cell-specific miRNA-mRNA regulatory network   
-    CSmiR_network_bootstrap <- CSmiR_net_bootstrap(miRNA_scRNA_norm_filter, mRNA_scRNA_norm_filter, 
+    CSmiR_network_bootstrap_null <- CSmiR_net_bootstrap(miRNA_scRNA_norm_filter, mRNA_scRNA_norm_filter, 
                                                    boxsize = 0.1, bootstrap_betw_point = 5, 
 						   bootstrap_num = 100, p.value.cutoff = 0.01)
+    prior_graph <- make_graph(c(t(TargetScan[, 1:2])), directed = TRUE)
+    CSmiR_network_bootstrap_null_graph <- lapply(seq(CSmiR_network_bootstrap_null), function(i) make_graph(c(t(CSmiR_network_bootstrap_null[[i]][, 1:2])), directed = TRUE))
+    CSmiR_network_bootstrap <- lapply(seq(CSmiR_network_bootstrap_null), function(i) as_data_frame(CSmiR_network_bootstrap_null_graph[[i]] %s% prior_graph))
   
 ## Experimentally validated cell-specific miRNA-mRNA interactions, the ground-truth (miRTarget variable) is from miRTarBase v8.0 and TarBase v8.0
     miRTarget_graph <- make_graph(c(t(miRTarget[, 1:2])), directed = TRUE)
@@ -95,19 +99,23 @@ load("Exp_K562_19_single_cells.RData")
 ## Identifying cell-cell crosstalk network in terms of network similarity matrix    
     CSmiR_network_bootstrap_adjacency_matrix <- ifelse(CSmiR_network_bootstrap_Sim > median(CSmiR_network_bootstrap_Sim[lower.tri(CSmiR_network_bootstrap_Sim)]), 1, 0)
     diag(CSmiR_network_bootstrap_adjacency_matrix) <- 0
+    colnames(CSmiR_network_bootstrap_adjacency_matrix) <- rownames(CSmiR_network_bootstrap_adjacency_matrix) <- rownames(miRNA_scRNA_norm_filter) 
     CSmiR_network_bootstrap_adjacency_matrix_graph <- graph_from_adjacency_matrix(CSmiR_network_bootstrap_adjacency_matrix, mode = "undirected")
-
+    
 ## Identifying cell-cell crosstalk network in terms of hub miRNA similarity matrix    
     CSmiR_hub_bootstrap_adjacency_matrix <- ifelse(CSmiR_hub_bootstrap_Sim > median(CSmiR_hub_bootstrap_Sim[lower.tri(CSmiR_hub_bootstrap_Sim)]), 1, 0)
     diag(CSmiR_hub_bootstrap_adjacency_matrix) <- 0
+    colnames(CSmiR_hub_bootstrap_adjacency_matrix) <- rownames(CSmiR_hub_bootstrap_adjacency_matrix) <- rownames(miRNA_scRNA_norm_filter)
     CSmiR_hub_bootstrap_adjacency_matrix_graph <- graph_from_adjacency_matrix(CSmiR_hub_bootstrap_adjacency_matrix, mode = "undirected")
 
 ## Identifying hub cells in terms of network similarity    
     CSmiR_network_bootstrap_cell_degree <- degree(CSmiR_network_bootstrap_adjacency_matrix_graph)
+    names(CSmiR_network_bootstrap_cell_degree) <- rownames(miRNA_scRNA_norm_filter)
     CSmiR_network_bootstrap_hub_cells <- names(sort(CSmiR_network_bootstrap_cell_degree[which(CSmiR_network_bootstrap_cell_degree!=0)], decreasing=TRUE))[1:ceiling(0.2*length(which(CSmiR_network_bootstrap_cell_degree!=0)))]
 
 ## Identifying hub cells in terms of hub miRNA similarity    
     CSmiR_hub_bootstrap_cell_degree <- degree(CSmiR_hub_bootstrap_adjacency_matrix_graph)
+    names(CSmiR_hub_bootstrap_cell_degree) <- rownames(miRNA_scRNA_norm_filter)
     CSmiR_hub_bootstrap_hub_cells <- names(sort(CSmiR_hub_bootstrap_cell_degree[which(CSmiR_hub_bootstrap_cell_degree!=0)], decreasing=TRUE))[1:ceiling(0.2*length(which(CSmiR_hub_bootstrap_cell_degree!=0)))]
 
 ## Identifying cell-cell crosstalk modules in terms of network similarity matrix   
@@ -130,23 +138,24 @@ load("Exp_K562_19_single_cells.RData")
     # Extracting CML-related conserved and rewired miRNA-mRNA regulatory networks associated with the miR-17/92 family
     CSmiR_network_bootstrap_miRfamily_CML <- lapply(seq(CSmiR_network_bootstrap_miRfamily), function(i) CSmiR_network_bootstrap_miRfamily[[i]][intersect(which(CSmiR_network_bootstrap_miRfamily[[i]][, 1] %in% as.matrix(CML)), which(CSmiR_network_bootstrap_miRfamily[[i]][, 2] %in% as.matrix(CML))), ])
     
-    # Experimentally validated conserved and rewired miRNA-mRNA interactions associated with the miR-17/92 family
+    # Experimentally validated miRNA-mRNA interactions associated with the miR-17/92 family
     CSmiR_network_bootstrap_miRfamily_graph <- lapply(seq(CSmiR_network_bootstrap_miRfamily), function(i) make_graph(c(t(CSmiR_network_bootstrap_miRfamily[[i]][, 1:2])), directed = TRUE))
     CSmiR_network_bootstrap_miRfamily_validated <- lapply(seq(CSmiR_network_bootstrap_miRfamily), function(i) as_data_frame(CSmiR_network_bootstrap_miRfamily_graph[[i]] %s% miRTarget_graph))
-
+   
 ## Discovering maximal bicliques of conserved and rewired the miR-17/92 family regulation   
-    CSmiR_network_miRfamily_bootstrap_biclique <- biclique_network(list(Sub_miR(Overlap_network_bootstrap_miRfamily), Sub_miR(Overlap_network_bootstrap_rewired_miRfamily)), lleast = 2, rleast = 3)
+    CSmiR_network_miRfamily_bootstrap_biclique_conserved <- biclique_network(list(Sub_miR(Overlap_network_bootstrap_miRfamily)), lleast = 2, rleast = 3)
+    CSmiR_network_miRfamily_bootstrap_biclique_rewired <- biclique_network(list(Sub_miR(Overlap_network_bootstrap_rewired_miRfamily)), lleast = 2, rleast = 3)
 
 ## Enrichment analysis of maximal bicliques of conserved and rewired the miR-17/92 family regulation   
-   miRfamily_bootstrap_biclique_conserved_gene_list <- lapply(seq(CSmiR_network_miRfamily_bootstrap_biclique[[1]]), function(i) CSmiR_network_miRfamily_bootstrap_biclique[[1]][[i]]$right)
-   miRfamily_bootstrap_biclique_rewired_gene_list <- lapply(seq(CSmiR_network_miRfamily_bootstrap_biclique[[2]]), function(i) CSmiR_network_miRfamily_bootstrap_biclique[[2]][[i]]$right)
+   miRfamily_bootstrap_biclique_conserved_gene_list <- lapply(seq(CSmiR_network_miRfamily_bootstrap_biclique_conserved[[1]]), function(i) CSmiR_network_miRfamily_bootstrap_biclique_conserved[[1]][[i]]$right)
+   miRfamily_bootstrap_biclique_rewired_gene_list <- lapply(seq(CSmiR_network_miRfamily_bootstrap_biclique_rewired[[1]]), function(i) CSmiR_network_miRfamily_bootstrap_biclique_rewired[[1]][[i]]$right)
 
    # GO, KEGG and Reactome enrichment analysis
    miRfamily_bootstrap_biclique_conserved_FEA <- moduleFEA(miRfamily_bootstrap_biclique_conserved_gene_list, padjustvaluecutoff = 0.05)
    miRfamily_bootstrap_biclique_rewired_FEA <- moduleFEA(miRfamily_bootstrap_biclique_rewired_gene_list, padjustvaluecutoff = 0.05)
 
-   miRfamily_bootstrap_biclique_conserved_miRmR_list <- lapply(seq(CSmiR_network_miRfamily_bootstrap_biclique[[1]]), function(i) c(CSmiR_network_miRfamily_bootstrap_biclique[[1]][[i]]$left, CSmiR_network_miRfamily_bootstrap_biclique[[1]][[i]]$right))
-   miRfamily_bootstrap_biclique_rewired_miRmR_list <- lapply(seq(CSmiR_network_miRfamily_bootstrap_biclique[[2]]), function(i) c(CSmiR_network_miRfamily_bootstrap_biclique[[2]][[i]]$left, CSmiR_network_miRfamily_bootstrap_biclique[[2]][[i]]$right))
+   miRfamily_bootstrap_biclique_conserved_miRmR_list <- lapply(seq(CSmiR_network_miRfamily_bootstrap_biclique_conserved[[1]]), function(i) c(CSmiR_network_miRfamily_bootstrap_biclique_conserved[[1]][[i]]$left, CSmiR_network_miRfamily_bootstrap_biclique[[1]][[i]]$right))
+   miRfamily_bootstrap_biclique_rewired_miRmR_list <- lapply(seq(CSmiR_network_miRfamily_bootstrap_biclique_rewired[[1]]), function(i) c(CSmiR_network_miRfamily_bootstrap_biclique_rewired[[1]][[i]]$left, CSmiR_network_miRfamily_bootstrap_biclique[[1]][[i]]$right))
 
    # CML enrichment analysis   
    miRfamily_bootstrap_biclique_conserved_CML_EA <- module_CML_EA(miRNA_scRNA_norm_filter, mRNA_scRNA_norm_filter, CML, miRfamily_bootstrap_biclique_conserved_miRmR_list)
@@ -167,9 +176,9 @@ load("Exp_K562_19_single_cells.RData")
    miRfamily_bootstrap_biclique_rewired_Cellmarker <- lapply(seq(miRfamily_bootstrap_biclique_rewired_gene_list), function(i) enricher(miRfamily_bootstrap_biclique_rewired_gene_list[[i]], TERM2GENE=cell_markers, minGSSize=1) %>% as.data.frame)
 
 ## Hierarchical cluster analysis of cell-specific miRNA-mRNA regulatory network    
-    rownames(CsmiR_network_bootstrap_Sim) <- colnames(CsmiR_network_bootstrap_Sim) <- rownames(miRNA_scRNA_norm_filter)
+    rownames(CSmiR_network_bootstrap_Sim) <- colnames(CSmiR_network_bootstrap_Sim) <- rownames(miRNA_scRNA_norm_filter)
 
-    hclust_res_network_bootstrap <- hclust(as.dist(1-CsmiR_network_bootstrap_Sim), "complete")
+    hclust_res_network_bootstrap <- hclust(as.dist(1-CSmiR_network_bootstrap_Sim), "complete")
  
     dend_network_bootstrap <- as.dendrogram(hclust_res_network_bootstrap)
     dend_network_bootstrap %>% set("branches_k_color", value = c("red", "blue"), k=2) %>% 
@@ -181,9 +190,9 @@ load("Exp_K562_19_single_cells.RData")
     set("labels_cex", value = 0.7) %>% plot(main="k=3 using network dissimilarity")
     
 ## Hierarchical cluster analysis of cell-specific hub miRNAs    
-    rownames(CsmiR_hub_bootstrap_Sim) <- colnames(CsmiR_hub_bootstrap_Sim) <- rownames(miRNA_scRNA_norm_filter)
+    rownames(CSmiR_hub_bootstrap_Sim) <- colnames(CSmiR_hub_bootstrap_Sim) <- rownames(miRNA_scRNA_norm_filter)
  
-    hclust_res_hub_bootstrap <- hclust(as.dist(1-CsmiR_hub_bootstrap_Sim), "complete")
+    hclust_res_hub_bootstrap <- hclust(as.dist(1-CSmiR_hub_bootstrap_Sim), "complete")
  
     dend_hub_bootstrap <- as.dendrogram(hclust_res_hub_bootstrap)
     dend_hub_bootstrap %>% set("branches_k_color", value = c("red", "blue"), k=2) %>% 
@@ -195,12 +204,12 @@ load("Exp_K562_19_single_cells.RData")
     set("labels_cex", value = 0.7) %>% plot(main="k=3 using hub miRNA dissimilarity")
     
 ## Similarity network plot in terms of cell-specific miRNA-mRNA regulatory netowork    
-    rownames(CsmiR_network_bootstrap_Sim) <- colnames(CsmiR_network_bootstrap_Sim) <- paste("Cell",c(1:19),sep=" ")
-    corrplot(CsmiR_network_bootstrap_Sim, method = "pie", type = "upper", diag = FALSE, cl.lim = c(0, 1), tl.cex = 1)
+    rownames(CSmiR_network_bootstrap_Sim) <- colnames(CSmiR_network_bootstrap_Sim) <- paste("Cell",c(1:19),sep=" ")
+    corrplot(CSmiR_network_bootstrap_Sim, method = "pie", type = "upper", diag = FALSE, cl.lim = c(0, 1), tl.cex = 1)
 
 ## Similarity network plot in terms of cell-specific hub miRNAs
-    rownames(CsmiR_hub_bootstrap_Sim) <- colnames(CsmiR_hub_bootstrap_Sim) <- paste("Cell",c(1:19),sep=" ")
-    corrplot(CsmiR_hub_bootstrap_Sim, method = "pie", type = "upper", diag = FALSE, cl.lim = c(0, 1), tl.cex = 1)
+    rownames(CSmiR_hub_bootstrap_Sim) <- colnames(CSmiR_hub_bootstrap_Sim) <- paste("Cell",c(1:19),sep=" ")
+    corrplot(CSmiR_hub_bootstrap_Sim, method = "pie", type = "upper", diag = FALSE, cl.lim = c(0, 1), tl.cex = 1)
 
 ## Stem plots
 index_net <- data.frame(value = unlist(lapply(seq(CSmiR_network_bootstrap), function(i) nrow(CSmiR_network_bootstrap[[i]]))), id = seq(19))
@@ -211,7 +220,7 @@ p1 <- ggplot(index_net, aes(x = id, y = value)) +
     geom_bar(aes(fill = col1), stat = "identity", width = 0.2) +
     #theme_bw(base_family = "Times") +
     xlab("Single-cell ID") +
-    ylab("#Predicted cell-specific miRNA-mRNA interactions") +
+    ylab("#Predicted miRNA-mRNA interactions") +
     theme(panel.grid.minor = element_blank(),
           panel.grid.major.x = element_blank(),
           legend.position="none", 
@@ -231,7 +240,7 @@ p2 <- ggplot(index_validated_net, aes(x = id, y = value)) +
     scale_fill_manual(values=c("plum4"), aesthetics = "fill") +
     scale_colour_manual(values=c("plum4"), aesthetics = "colour") +
     xlab("Single-cell ID") +
-    ylab("%Validated cell-specific miRNA-mRNA interactions") +
+    ylab("%Validated miRNA-mRNA interactions") +
     theme(panel.grid.minor = element_blank(),
           panel.grid.major.x = element_blank(),
           legend.position="none", 
@@ -251,7 +260,7 @@ p3 <- ggplot(index_CML_net, aes(x = id, y = value)) +
     scale_fill_manual(values=c("blue"), aesthetics = "fill") +
     scale_colour_manual(values=c("blue"), aesthetics = "colour") +
     xlab("Single-cell ID") +
-    ylab("%CML-related cell-specific miRNA-mRNA interactions") +
+    ylab("%CML-related miRNA-mRNA interactions") +
     theme(panel.grid.minor = element_blank(),
           panel.grid.major.x = element_blank(),
           legend.position="none", 
@@ -271,7 +280,7 @@ p4 <- ggplot(index_CML_hub, aes(x = id, y = value)) +
     scale_fill_manual(values=c("green"), aesthetics = "fill") +
     scale_colour_manual(values=c("green"), aesthetics = "colour") +
     xlab("Single-cell ID") +
-    ylab("%CML-related cell-specific hub miRNAs") +
+    ylab("%CML-related hub miRNAs") +
     theme(panel.grid.minor = element_blank(),
           panel.grid.major.x = element_blank(),
           legend.position="none", 
