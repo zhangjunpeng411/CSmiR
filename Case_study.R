@@ -16,9 +16,11 @@ library(cowplot)
 library(clusterProfiler)
 library(msigdbr)
 library(vroom)
+library(doParallel)
 
 ## Load utility functions
 source("CSmiR.R")
+source("CSmiRsyn.R")
 
 ## Load prepared datasets
 load("Exp_K562_19_single_cells.RData")
@@ -293,6 +295,299 @@ p4 <- ggplot(index_CML_hub, aes(x = id, y = value)) +
 
 library(patchwork)
 (p1+p2)/(p3+p4) + plot_annotation(tag_levels = 'A')
+
+## Identifying cell-specific miRNA synergistic networks
+num.cores <- 6
+# get number of cores to run
+cl <- makeCluster(num.cores)
+registerDoParallel(cl)  
+        
+CSmiRsyn <- foreach(i = seq(CSmiR_network_bootstrap_validated), .packages = c("igraph", "pracma", "WGCNA"), 
+                   .export = c("CSmiRsyn_edge_bootstrap", "CSmiRsyn_net", "csn_edge")) %dopar% {
+                   CSmiRsyn_net(CSmiR_network_bootstrap_validated[[i]], i, 
+                   miRNA_scRNA_norm_filter, mRNA_scRNA_norm_filter, 
+		   minSharedmR = 1, p.value.cutoff = 0.05)
+}     
+    
+# shut down the workers
+stopCluster(cl)
+stopImplicitCluster()
+
+# get number of cores to run
+cl <- makeCluster(num.cores)
+registerDoParallel(cl)  
+
+## Identifying cell-specific miRNA synergistic modules
+CSmiRsyn_module <- foreach(i = seq(CSmiR_network_bootstrap_validated), .packages = c("igraph", "pracma", "WGCNA", "miRspongeR"), 
+                   .export = c("CSmiRsyn_edge_bootstrap", "CSmiRsyn_net", "csn_edge")) %dopar% {
+                   netModule(CSmiRsyn[[i]][, 1:2], modulesize = 3)
+}
+
+# shut down the workers
+stopCluster(cl)
+stopImplicitCluster()
+
+## Identifying cell-specific hub synergistic miRNAs
+CSmiRsyn_graph <- lapply(seq(CSmiRsyn), function(i) make_graph(c(t(CSmiRsyn[[i]][, 1:2])), directed = FALSE))
+CSmiRsyn_degree <- lapply(seq(CSmiRsyn), function(i) degree(CSmiRsyn_graph[[i]]))
+CSmiRsyn_hub_miRNAs <- lapply(seq(CSmiRsyn), function(i) 
+                              names(sort(CSmiRsyn_degree[[i]][which(CSmiRsyn_degree[[i]]!=0)], 
+			      decreasing = TRUE))[1:ceiling(0.2*length(which(CSmiRsyn_degree[[i]]!=0)))])
+
+## CML-related cell-specific miRNA-miRNA interactions
+CML <- as.matrix(read.csv("CML.csv", header = FALSE, sep=","))    
+CSmiRsyn_CML <- lapply(seq(CSmiRsyn), function(i) CSmiRsyn[[i]][intersect(which(CSmiRsyn[[i]][, 1] %in% as.matrix(CML)), which(CSmiRsyn[[i]][, 2] %in% as.matrix(CML))), ])
+
+## CML-related cell-specific hub synergistic miRNAs
+CSmiRsyn_hub_miRNAs_CML <- lapply(seq(CSmiRsyn_hub_miRNAs), function(i) CSmiRsyn_hub_miRNAs[[i]][which(CSmiRsyn_hub_miRNAs[[i]] %in% as.matrix(CML))])
+
+## Stem plots
+index_CSmiRsyn <- data.frame(value = unlist(lapply(seq(CSmiRsyn), function(i) nrow(CSmiRsyn[[i]]))), id = seq(19))
+col5 <- rep("#FF9999", 19)
+p5 <- ggplot(index_CSmiRsyn, aes(x = id, y = value)) +
+    geom_point(aes(color = col5), size = 5) +
+    geom_bar(aes(fill = col5), stat = "identity", width = 0.2) +
+    #theme_bw(base_family = "Times") +
+    xlab("Single-cell ID") +
+    ylab("#Interactions") +
+    theme(panel.grid.minor = element_blank(),
+          panel.grid.major.x = element_blank(),
+          legend.position="none", 
+	  panel.border = element_blank(),
+          axis.text.x = element_text(face = "bold"),
+	  axis.text.y = element_text(face = "bold"),
+	  axis.title.x = element_text(face = "bold"),
+	  axis.title.y = element_text(face = "bold")) +
+    scale_x_continuous(breaks = seq(1, 19, 1)) 
+
+index_CSmiRsyn_hub <- data.frame(value = unlist(lapply(seq(CSmiRsyn_hub_miRNAs), function(i) length(CSmiRsyn_hub_miRNAs[[i]]))), id = seq(19))
+col6 <- rep("#990066", 19)
+p6 <- ggplot(index_CSmiRsyn_hub, aes(x = id, y = value)) +
+    geom_point(aes(color = col6), size = 5) +
+    geom_bar(aes(fill = col6), stat = "identity", width = 0.2) +
+    scale_fill_manual(values=c("#990066"), aesthetics = "fill") +
+    scale_colour_manual(values=c("#990066"), aesthetics = "colour") +
+    xlab("Single-cell ID") +
+    ylab("#Hubs") +
+    theme(panel.grid.minor = element_blank(),
+          panel.grid.major.x = element_blank(),
+          legend.position="none", 
+	  panel.border = element_blank(),
+          axis.text.x = element_text(face = "bold"),
+	  axis.text.y = element_text(face = "bold"),
+	  axis.title.x = element_text(face = "bold"),
+	  axis.title.y = element_text(face = "bold")) + 
+    scale_x_continuous(breaks = seq(1, 19, 1)) 
+
+index_CSmiRsyn_CML <- data.frame(value = unlist(lapply(seq(CSmiRsyn_CML), function(i) nrow(CSmiRsyn_CML[[i]])/nrow(CSmiRsyn[[i]])*100)), id = seq(19))
+col7 <- rep("blue", 19)
+p7 <- ggplot(index_CSmiRsyn_CML, aes(x = id, y = value)) +
+    geom_point(aes(color = col7), size = 5) +
+    geom_bar(aes(fill = col7), stat = "identity", width = 0.2) +
+    scale_fill_manual(values=c("blue"), aesthetics = "fill") +
+    scale_colour_manual(values=c("blue"), aesthetics = "colour") +
+    xlab("Single-cell ID") +
+    ylab("%CML-related interactions") +
+    theme(panel.grid.minor = element_blank(),
+          panel.grid.major.x = element_blank(),
+          legend.position="none", 
+	  panel.border = element_blank(),
+          axis.text.x = element_text(face = "bold"),
+	  axis.text.y = element_text(face = "bold"),
+	  axis.title.x = element_text(face = "bold"),
+	  axis.title.y = element_text(face = "bold")) +
+    scale_x_continuous(breaks = seq(1, 19, 1))
+
+index_CSmiRsyn_hub_CML <- data.frame(value = unlist(lapply(seq(CSmiRsyn_hub_miRNAs_CML), function(i) length(CSmiRsyn_hub_miRNAs_CML[[i]])/length(CSmiRsyn_hub_miRNAs[[i]])*100)), id = seq(19))
+col8 <- rep("green", 19)
+p8 <- ggplot(index_CSmiRsyn_hub_CML, aes(x = id, y = value)) +
+    geom_point(aes(color = col8), size = 5) +
+    geom_bar(aes(fill = col8), stat = "identity", width = 0.2) +
+    scale_fill_manual(values=c("green"), aesthetics = "fill") +
+    scale_colour_manual(values=c("green"), aesthetics = "colour") +
+    xlab("Single-cell ID") +
+    ylab("%CML-related hubs") +
+    theme(panel.grid.minor = element_blank(),
+          panel.grid.major.x = element_blank(),
+          legend.position="none", 
+	  panel.border = element_blank(),
+          axis.text.x = element_text(face = "bold"),
+	  axis.text.y = element_text(face = "bold"),
+	  axis.title.x = element_text(face = "bold"),
+	  axis.title.y = element_text(face = "bold")) +
+    scale_x_continuous(breaks = seq(1, 19, 1))
+
+index_CSmiRsyn_module <- data.frame(value = unlist(lapply(seq(CSmiRsyn_module), function(i) length(CSmiRsyn_module[[i]]))), id = seq(19))
+col9 <- rep("#FF99FF", 19)
+p9 <- ggplot(index_CSmiRsyn_module, aes(x = id, y = value)) +
+    geom_point(aes(color = col9), size = 5) +
+    geom_bar(aes(fill = col9), stat = "identity", width = 0.2) +
+    scale_fill_manual(values=c("#FF99FF"), aesthetics = "fill") +
+    scale_colour_manual(values=c("#FF99FF"), aesthetics = "colour") +
+    xlab("Single-cell ID") +
+    ylab("#Modules") +
+    theme(panel.grid.minor = element_blank(),
+          panel.grid.major.x = element_blank(),
+          legend.position="none", 
+	  panel.border = element_blank(),
+          axis.text.x = element_text(face = "bold"),
+	  axis.text.y = element_text(face = "bold"),
+	  axis.title.x = element_text(face = "bold"),
+	  axis.title.y = element_text(face = "bold")) + 
+    scale_x_continuous(breaks = seq(1, 19, 1)) 
+
+index_CSmiRsyn_module_CML <- data.frame(value = unlist(lapply(seq(CSmiRsyn_module), function(i) length(which(module_CML_EA(miRNA_scRNA_norm_filter, CML, CSmiRsyn_module[[i]]) < 0.05))/length(CSmiRsyn_module[[i]])*100)), id = seq(19))
+col10 <- rep("#696969", 19)
+p10 <- ggplot(index_CSmiRsyn_module_CML, aes(x = id, y = value)) +
+    geom_point(aes(color = col10), size = 5) +
+    geom_bar(aes(fill = col10), stat = "identity", width = 0.2) +
+    scale_fill_manual(values=c("#696969"), aesthetics = "fill") +
+    scale_colour_manual(values=c("#696969"), aesthetics = "colour") +
+    xlab("Single-cell ID") +
+    ylab("%CML-related modules") +
+    theme(panel.grid.minor = element_blank(),
+          panel.grid.major.x = element_blank(),
+          legend.position="none", 
+	  panel.border = element_blank(),
+          axis.text.x = element_text(face = "bold"),
+	  axis.text.y = element_text(face = "bold"),
+	  axis.title.x = element_text(face = "bold"),
+	  axis.title.y = element_text(face = "bold")) +
+    scale_x_continuous(breaks = seq(1, 19, 1))
+
+library(patchwork)
+(p5+p7)/(p6+p8)/(p9+p10) + plot_annotation(tag_levels = 'A')
+
+## Similarity matrix in terms of networks, hubs and modules
+CSmiRsyn_net_Sim <- Sim.network(CSmiRsyn, CSmiRsyn, directed = FALSE)
+CSmiRsyn_hub_Sim <- Sim.hub(CSmiRsyn_hub_miRNAs, CSmiRsyn_hub_miRNAs)
+CSmiRsyn_module_Sim <- matrix(NA, 19, 19)
+for (i in seq(19)) {
+    for (j in seq(19)) {
+        CSmiRsyn_module_Sim[i, j] <- Sim.module.group(CSmiRsyn_module[[i]], CSmiRsyn_module[[j]])
+    }
+}
+
+col <- colorRampPalette(c("black", "blue", "red"))
+rownames(CSmiRsyn_net_Sim) <- colnames(CSmiRsyn_net_Sim) <- paste("Cell",c(1:19),sep=" ")
+corrplot(CSmiRsyn_net_Sim, method = "pie", type = "upper", diag = FALSE, cl.lim = c(0, 1), tl.cex = 1)
+
+rownames(CSmiRsyn_hub_Sim) <- colnames(CSmiRsyn_hub_Sim) <- paste("Cell",c(1:19),sep=" ")
+corrplot(CSmiRsyn_hub_Sim, method = "pie", type = "upper", diag = FALSE, cl.lim = c(0, 1), tl.cex = 1)
+
+rownames(CSmiRsyn_module_Sim) <- colnames(CSmiRsyn_module_Sim) <- paste("Cell",c(1:19),sep=" ")
+corrplot(CSmiRsyn_module_Sim, method = "pie", type = "upper", diag = FALSE, cl.lim = c(0, 1), tl.cex = 1)
+
+## Overlap of cell-specific miRNA-miRNA interactions across cells
+CSmiRsyn_input <- lapply(seq(CSmiRsyn), function(i) CSmiRsyn[[i]][, 1:2])
+CSmiRsyn_Overlap_network_conserved <- Overlap_net(CSmiRsyn_input, Intersect_num = round(length(CSmiRsyn)*0.9))
+CSmiRsyn_Overlap_network_union <- Overlap_net(CSmiRsyn_input, Intersect_num = 1)
+CSmiRsyn_Overlap_network_two <- Overlap_net(CSmiRsyn_input, Intersect_num = 2)
+CSmiRsyn_Overlap_network_union_graph <- make_graph(c(t(CSmiRsyn_Overlap_network_union[, 1:2])), directed = FALSE)
+CSmiRsyn_Overlap_network_two_graph <- make_graph(c(t(CSmiRsyn_Overlap_network_two[, 1:2])), directed = FALSE)
+CSmiRsyn_Overlap_network_rewired <- as_data_frame(CSmiRsyn_Overlap_network_union_graph %m% CSmiRsyn_Overlap_network_two_graph)
+CSmiRsyn_Overlap_network_conserved_graph <- make_graph(c(t(CSmiRsyn_Overlap_network_conserved[, 1:2])), directed = FALSE)
+CSmiRsyn_Overlap_network_rewired_graph <- make_graph(c(t(CSmiRsyn_Overlap_network_rewired[, 1:2])), directed = FALSE)
+    
+## CML-related conserved and rewired miRNA-miRNA synergistic network
+CSmiRsyn_Overlap_network_conserved_CML <- CSmiRsyn_Overlap_network_conserved[intersect(which(CSmiRsyn_Overlap_network_conserved[, 1] %in% as.matrix(CML)), which(CSmiRsyn_Overlap_network_conserved[, 2] %in% as.matrix(CML))), ]
+CSmiRsyn_Overlap_network_rewired_CML <- CSmiRsyn_Overlap_network_rewired[intersect(which(CSmiRsyn_Overlap_network_rewired[, 1] %in% as.matrix(CML)), which(CSmiRsyn_Overlap_network_rewired[, 2] %in% as.matrix(CML))), ]
+
+## Overlap of cell-specific hub miRNAs across cells
+CSmiRsyn_Overlap_hub_miRNAs_conserved <- Overlap_hub(CSmiRsyn_hub_miRNAs, Intersect_num = round(length(CSmiRsyn_hub_miRNAs)*0.9))
+CSmiRsyn_Overlap_hub_miRNAs_union <- Overlap_hub(CSmiRsyn_hub_miRNAs, Intersect_num = 1)
+CSmiRsyn_Overlap_hub_miRNAs_two <- Overlap_hub(CSmiRsyn_hub_miRNAs, Intersect_num = 2)
+CSmiRsyn_Overlap_hub_miRNAs_rewired <- setdiff(CSmiRsyn_Overlap_hub_miRNAs_union, CSmiRsyn_Overlap_hub_miRNAs_two)
+
+## CML-related conserved and rewired hub miRNAs
+CSmiRsyn_Overlap_hub_miRNAs_conserved_CML <- CSmiRsyn_Overlap_hub_miRNAs_conserved[which(CSmiRsyn_Overlap_hub_miRNAs_conserved %in% as.matrix(CML))]    
+CSmiRsyn_Overlap_hub_miRNAs_rewired_CML <- CSmiRsyn_Overlap_hub_miRNAs_rewired[which(CSmiRsyn_Overlap_hub_miRNAs_rewired %in% as.matrix(CML))]
+
+## Overlap of cell-specific miRNA synergistic modules across cells
+CSmiRsyn_module_collapse <- list()
+for(j in seq(19)) {
+    interin <- CSmiRsyn_module[[j]]
+    CSmiRsyn_module_collapse[[j]] <- unlist(lapply(seq(interin), function(i) paste(sort(interin[[i]]), collapse = ", ")))
+}
+
+Overlap_module_conserved <- Overlap_module(CSmiRsyn_module_collapse, Intersect_num = round(length(CSmiRsyn_module_collapse)*0.9))
+Overlap_module_union <- Overlap_module(CSmiRsyn_module_collapse, Intersect_num = 1)
+Overlap_module_two <- Overlap_module(CSmiRsyn_module_collapse, Intersect_num = 2)
+Overlap_module_rewired <- setdiff(Overlap_module_union, Overlap_module_two)
+
+## Hierarchical cluster analysis
+library(dendextend)
+rownames(CSmiRsyn_net_Sim) <- colnames(CSmiRsyn_net_Sim) <- colnames(CSmiRsyn_module_Sim) <- rownames(miRNA_scRNA_norm_filter)
+hclust_res_CSmiRsyn_net <- hclust(as.dist(1-CSmiRsyn_net_Sim), "complete")
+dend_network_bootstrap <- as.dendrogram(hclust_res_CSmiRsyn_net)
+dend_network_bootstrap %>% set("branches_k_color", value = c("red", "green", "blue"), k=3) %>% 
+set("labels_col", value = c("red", "green", "blue"), k=3) %>% 
+set("labels_cex", value = 0.7) %>% plot(main="k=3 using network dissimilarity")
+
+rownames(CSmiRsyn_hub_Sim) <- colnames(CSmiRsyn_hub_Sim) <- rownames(miRNA_scRNA_norm_filter)
+hclust_res_CSmiRsyn_hub <- hclust(as.dist(1-CSmiRsyn_hub_Sim), "complete")
+dend_hub_bootstrap <- as.dendrogram(hclust_res_CSmiRsyn_hub)    
+dend_hub_bootstrap %>% set("branches_k_color", value = c("red", "green", "blue"), k=3) %>% 
+set("labels_col", value = c("red", "green", "blue"), k=3) %>% 
+set("labels_cex", value = 0.7) %>% plot(main="k=3 using hub miRNA dissimilarity")
+
+rownames(CSmiRsyn_module_Sim) <- colnames(CSmiRsyn_module_Sim) <- rownames(miRNA_scRNA_norm_filter)
+hclust_res_CSmiRsyn_module <- hclust(as.dist(1-CSmiRsyn_module_Sim), "complete")
+dend_module_bootstrap <- as.dendrogram(hclust_res_CSmiRsyn_module)    
+dend_module_bootstrap %>% set("branches_k_color", value = c("red", "green", "blue"), k=3) %>% 
+set("labels_col", value = c("red", "green", "blue"), k=3) %>% 
+set("labels_cex", value = 0.7) %>% plot(main="k=3 using module dissimilarity")
+
+d <- dist(cbind(miRNA_scRNA_norm_filter, mRNA_scRNA_norm_filter))
+d <- (d-min(d))/(max(d)-min(d))
+fit <- hclust(d, method = "complete")
+
+dend_fit <- as.dendrogram(fit)   
+dend_fit %>% set("branches_k_color", value = c("red", "green", "blue"), k=3) %>% 
+set("labels_col", value = c("red", "green", "blue"), k=3) %>% 
+set("labels_cex", value = 0.7) %>% plot(main="k=3 using single-cell transcriptomics data")
+
+## Identifying cell-cell crosstalk network in terms of miRNA synergistic network similarity matrix    
+CSmiRsyn_net_Sim_adjacency_matrix <- ifelse(CSmiRsyn_net_Sim > median(CSmiRsyn_net_Sim[lower.tri(CSmiRsyn_net_Sim)]), 1, 0)
+diag(CSmiRsyn_net_Sim_adjacency_matrix) <- 0
+rownames(CSmiRsyn_net_Sim_adjacency_matrix) <- rownames(CSmiRsyn_net_Sim)
+colnames(CSmiRsyn_net_Sim_adjacency_matrix) <- colnames(CSmiRsyn_net_Sim)
+CSmiRsyn_net_Sim_adjacency_matrix_graph <- graph_from_adjacency_matrix(CSmiRsyn_net_Sim_adjacency_matrix, mode = "undirected")
+
+## Identifying cell-cell crosstalk network in terms of hub miRNA similarity matrix
+CSmiRsyn_hub_Sim_adjacency_matrix <- ifelse(CSmiRsyn_hub_Sim > median(CSmiRsyn_hub_Sim[lower.tri(CSmiRsyn_hub_Sim)]), 1, 0)
+diag(CSmiRsyn_hub_Sim_adjacency_matrix) <- 0
+rownames(CSmiRsyn_hub_Sim_adjacency_matrix) <- rownames(CSmiRsyn_hub_Sim)
+colnames(CSmiRsyn_hub_Sim_adjacency_matrix) <- colnames(CSmiRsyn_hub_Sim)
+CSmiRsyn_hub_Sim_adjacency_matrix_graph <- graph_from_adjacency_matrix(CSmiRsyn_hub_Sim_adjacency_matrix, mode = "undirected")
+
+## Identifying cell-cell crosstalk network in terms of miRNA synergistic similarity matrix
+CSmiRsyn_module_Sim_adjacency_matrix <- ifelse(CSmiRsyn_module_Sim > median(CSmiRsyn_module_Sim[lower.tri(CSmiRsyn_module_Sim)]), 1, 0)
+diag(CSmiRsyn_module_Sim_adjacency_matrix) <- 0
+rownames(CSmiRsyn_module_Sim_adjacency_matrix) <- rownames(CSmiRsyn_module_Sim)
+colnames(CSmiRsyn_module_Sim_adjacency_matrix) <- colnames(CSmiRsyn_module_Sim)
+CSmiRsyn_module_Sim_adjacency_matrix_graph <- graph_from_adjacency_matrix(CSmiRsyn_module_Sim_adjacency_matrix, mode = "undirected")
+
+## Identifying hub cells in terms of miRNA synergistic network similarity    
+CSmiRsyn_net_Sim_cell_degree <- degree(CSmiRsyn_net_Sim_adjacency_matrix_graph)
+CSmiRsyn_net_Sim_hub_cells <- names(sort(CSmiRsyn_net_Sim_cell_degree[which(CSmiRsyn_net_Sim_cell_degree!=0)], decreasing=TRUE))[1:ceiling(0.2*length(which(CSmiRsyn_net_Sim_cell_degree!=0)))]
+
+## Identifying hub cells in terms of hub miRNA similarity
+CSmiRsyn_hub_Sim_cell_degree <- degree(CSmiRsyn_hub_Sim_adjacency_matrix_graph)
+CSmiRsyn_hub_Sim_hub_cells <- names(sort(CSmiRsyn_hub_Sim_cell_degree[which(CSmiRsyn_hub_Sim_cell_degree!=0)], decreasing=TRUE))[1:ceiling(0.2*length(which(CSmiRsyn_hub_Sim_cell_degree!=0)))]
+
+## Identifying hub cells in terms of miRNA synergistic module similarity
+CSmiRsyn_module_Sim_cell_degree <- degree(CSmiRsyn_module_Sim_adjacency_matrix_graph)
+CSmiRsyn_module_Sim_hub_cells <- names(sort(CSmiRsyn_module_Sim_cell_degree[which(CSmiRsyn_module_Sim_cell_degree!=0)], decreasing=TRUE))[1:ceiling(0.2*length(which(CSmiRsyn_module_Sim_cell_degree!=0)))]
+
+## Identifying cell-cell crosstalk modules in terms of miRNA synergistic network similarity matrix
+CSmiRsyn_net_Sim_cell_module <- netModule(CSmiRsyn_net_Sim_adjacency_matrix_graph %>% as_data_frame)
+
+## Identifying cell-cell crosstalk modules in terms of hub miRNA similarity matrix
+CSmiRsyn_hub_Sim_cell_module <- netModule(CSmiRsyn_hub_Sim_adjacency_matrix_graph %>% as_data_frame)
+
+## Identifying cell-cell crosstalk modules in terms of miRNA synergistic module similarity matrix
+CSmiRsyn_module_Sim_cell_module <- netModule(CSmiRsyn_module_Sim_adjacency_matrix_graph %>% as_data_frame)
 
 save.image("CSmiR.RData")
 
