@@ -9,7 +9,9 @@ Exp_K562_19_single_cells.RData: Matched miRNA and mRNA expression data across 19
 
 CSmiR.R: Utility functions for exploring cell-specific miRNA regulation.
 
-Case_study.R: Running scripts for exploring cell-specific miRNA regulation
+CSmiRsyn.R: Utility functions for exploring cell-specific miRNA synergism.
+
+Case_study.R: Running scripts for exploring cell-specific miRNA regulation.
 
 ## The usage of CSmiR
 Paste all files into a single folder (set the folder as the directory of R environment), the workflow of CSmiR is implemented in CSmiR.R. The users can simply run the scripts as follows.
